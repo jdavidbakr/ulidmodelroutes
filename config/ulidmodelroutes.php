@@ -4,6 +4,6 @@ declare(strict_types=1);
 
 return [
 
-    'placeholder' => 'default',
+    'default_column_name' => 'ulid',
 
 ];

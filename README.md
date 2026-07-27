@@ -20,48 +20,106 @@ You can install the package via Composer:
 composer require jdavidbakr/ulidmodelroutes
 ```
 
-You may publish all of the package's resources at once:
-
-```bash
-php artisan vendor:publish --tag="ulidmodelroutes"
-```
-
-Or, you may publish each resource individually:
-
-### Publishing the Configuration File
+If you want to change the default ULID column name, publish the config file:
 
 ```bash
 php artisan vendor:publish --tag="ulidmodelroutes-config"
 ```
 
-### Publishing and Running the Migrations
-
-```bash
-php artisan vendor:publish --tag="ulidmodelroutes-migrations"
-php artisan migrate
-```
-
-### Publishing the Views
-
-```bash
-php artisan vendor:publish --tag="ulidmodelroutes-views"
-```
-
-### Publishing the Translations
-
-```bash
-php artisan vendor:publish --tag="ulidmodelroutes-lang"
-```
-
-### Publishing the Public Assets
-
-```bash
-php artisan vendor:publish --tag="ulidmodelroutes-assets"
-```
-
 ## Usage
 
-<!-- Add a basic usage example here. -->
+Add a ULID column to each model table that should be used for route model binding. Keep it indexed and unique.
+
+```php
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+Schema::table('posts', function (Blueprint $table) {
+    $table->ulid('ulid')->nullable()->unique();
+});
+```
+
+Apply the trait to the model.
+
+```php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use jdavidbakr\UlidModelRoutes\HasUlidRouteKey;
+
+class Post extends Model
+{
+    use HasUlidRouteKey;
+}
+```
+
+Once the trait is applied:
+
+- new models receive a ULID automatically when they are created
+- URL generation uses the ULID instead of the integer primary key
+- implicit route model binding resolves records by the ULID column
+
+Example route:
+
+```php
+use App\Models\Post;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/posts/{post}', function (Post $post) {
+    return $post;
+});
+```
+
+Example URL generation:
+
+```php
+$post = Post::query()->first();
+
+route('posts.show', $post);
+// /posts/01K10R0X6T0B3R3D4Y8S0KQ7M4
+```
+
+### Customizing the column name per model
+
+If a model should use a different route key column, define `ulidRouteKeyColumnName` on that model.
+
+```php
+class Team extends Model
+{
+    use HasUlidRouteKey;
+
+    protected ?string $ulidRouteKeyColumnName = 'public_id';
+}
+```
+
+### Setting a package-wide default column
+
+After publishing the config file, change the default column name:
+
+```php
+return [
+    'default_column_name' => 'public_id',
+];
+```
+
+### Existing data
+
+This package does not create database columns for you. If you are adding ULIDs to an existing table, add the column in a migration and then backfill missing values before making the column unique.
+
+You can backfill an existing model with the included Artisan command:
+
+```bash
+php artisan ulidmodelroutes:backfill "App\\Models\\Post"
+```
+
+The command only fills missing route key values. When a row has a `created_at` value, the generated ULID uses that timestamp so the resulting identifiers stay as close as possible to the model's original creation order.
+
+Recommended rollout for existing tables:
+
+1. Add the nullable ULID column.
+2. Run the backfill command for the model.
+3. Verify all rows have values.
+4. Add the unique index and, if desired, make the column non-nullable.
 
 ## Changelog
 
@@ -69,16 +127,15 @@ Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed re
 
 ## Contributing
 
-Thank you for considering contributing to Ulidmodelroutes! Please review our [contributing guide](.github/CONTRIBUTING.md) to get started.
+Thank you for considering contributing to Ulidmodelroutes.
 
 ## Security Vulnerabilities
 
-Please review [our security policy](.github/SECURITY.md) on how to report security vulnerabilities.
+Please open a private security advisory or contact the maintainer directly if you discover a vulnerability.
 
 ## Credits
 
 - [J David Baker](https://github.com/jdavidbakr)
-- [All Contributors](../../contributors)
 
 ## License
 
