@@ -9,8 +9,8 @@ use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use jdavidbakr\UlidModelRoutes\HasUlidRouteKey;
+use jdavidbakr\UlidModelRoutes\RouteKeyGenerator;
 
 class BackfillUlidRouteKeysCommand extends Command
 {
@@ -65,12 +65,12 @@ class BackfillUlidRouteKeysCommand extends Command
             ->orderBy($keyName)
             ->cursor()
             ->each(function (Model $model) use ($prototype, $routeKeyColumn, $keyName, &$updated): void {
-                $ulid = (string) Str::ulid($this->resolveTimestamp($model));
+                $routeKey = RouteKeyGenerator::generate($this->resolveTimestamp($model));
 
                 $prototype->getConnection()
                     ->table($prototype->getTable())
                     ->where($keyName, $model->getKey())
-                    ->update([$routeKeyColumn => $ulid]);
+                    ->update([$routeKeyColumn => $routeKey]);
 
                 $updated++;
             });

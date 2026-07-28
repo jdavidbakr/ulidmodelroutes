@@ -7,10 +7,12 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use jdavidbakr\UlidModelRoutes\HasUlidRouteKey;
+use Ramsey\Uuid\Uuid;
 
 beforeEach(function (): void {
     Schema::dropIfExists('posts');
     Schema::dropIfExists('teams');
+    Schema::dropIfExists('uuid_posts');
 
     Schema::create('posts', function (Blueprint $table): void {
         $table->id();
@@ -25,11 +27,17 @@ beforeEach(function (): void {
         $table->string('name')->nullable();
         $table->timestamps();
     });
+
+    Schema::create('uuid_posts', function (Blueprint $table): void {
+        $table->id();
+        $table->uuid('uuid')->nullable()->unique();
+        $table->string('title')->nullable();
+        $table->timestamps();
+    });
 });
 
 it('assigns a ulid route key on create and resolves route binding by that key', function (): void {
-    $post = new class extends Model
-    {
+    $post = new class () extends Model {
         use HasUlidRouteKey;
 
         protected $table = 'posts';
@@ -54,8 +62,7 @@ it('assigns a ulid route key on create and resolves route binding by that key', 
 });
 
 it('preserves an explicit ulid route key value', function (): void {
-    $post = new class extends Model
-    {
+    $post = new class () extends Model {
         use HasUlidRouteKey;
 
         protected $table = 'posts';
@@ -74,8 +81,7 @@ it('preserves an explicit ulid route key value', function (): void {
 });
 
 it('supports overriding the route key column per model', function (): void {
-    $team = new class extends Model
-    {
+    $team = new class () extends Model {
         use HasUlidRouteKey;
 
         protected $table = 'teams';
@@ -103,8 +109,7 @@ it('supports overriding the route key column per model', function (): void {
 it('falls back to the configured default column name', function (): void {
     config()->set('ulidmodelroutes.default_column_name', 'public_id');
 
-    $team = new class extends Model
-    {
+    $team = new class () extends Model {
         use HasUlidRouteKey;
 
         protected $table = 'teams';
@@ -124,4 +129,59 @@ it('falls back to the configured default column name', function (): void {
 
     expect($team->getRouteKeyName())->toBe('public_id')
         ->and(Str::isUlid($publicId))->toBeTrue();
+});
+
+it('generates uuid route keys when configured', function (): void {
+    config()->set('ulidmodelroutes.id_type', 'uuid');
+    config()->set('ulidmodelroutes.uuid_type', 'uuid7');
+    config()->set('ulidmodelroutes.default_column_name', 'uuid');
+
+    $post = new class () extends Model {
+        use HasUlidRouteKey;
+
+        protected $table = 'uuid_posts';
+
+        protected $guarded = [];
+    };
+
+    $post->forceFill(['title' => 'UUID post'])->save();
+
+    $generatedUuid = $post->getAttribute('uuid');
+
+    expect(is_string($generatedUuid))->toBeTrue();
+
+    if (! is_string($generatedUuid)) {
+        return;
+    }
+
+    expect(Str::isUuid($generatedUuid))->toBeTrue()
+        ->and(Uuid::fromString($generatedUuid)->getVersion())->toBe(7)
+        ->and($post->resolveRouteBinding($generatedUuid)?->getKey())->toBe($post->getKey());
+});
+
+it('supports selecting uuid4 as the uuid type', function (): void {
+    config()->set('ulidmodelroutes.id_type', 'uuid');
+    config()->set('ulidmodelroutes.uuid_type', 'uuid4');
+    config()->set('ulidmodelroutes.default_column_name', 'uuid');
+
+    $post = new class () extends Model {
+        use HasUlidRouteKey;
+
+        protected $table = 'uuid_posts';
+
+        protected $guarded = [];
+    };
+
+    $post->forceFill(['title' => 'UUID4 post'])->save();
+
+    $generatedUuid = $post->getAttribute('uuid');
+
+    expect(is_string($generatedUuid))->toBeTrue();
+
+    if (! is_string($generatedUuid)) {
+        return;
+    }
+
+    expect(Str::isUuid($generatedUuid))->toBeTrue()
+        ->and(Uuid::fromString($generatedUuid)->getVersion())->toBe(4);
 });

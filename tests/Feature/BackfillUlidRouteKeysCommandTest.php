@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use jdavidbakr\UlidModelRoutes\HasUlidRouteKey;
+use Ramsey\Uuid\Uuid;
 use Symfony\Component\Uid\Ulid;
 
 class BackfillPost extends Model
@@ -30,6 +31,17 @@ class BackfillTeam extends Model
     protected $guarded = [];
 
     protected ?string $ulidRouteKeyColumnName = 'public_id';
+}
+
+class BackfillUuidPost extends Model
+{
+    use HasUlidRouteKey;
+
+    protected $table = 'backfill_uuid_posts';
+
+    protected $guarded = [];
+
+    protected ?string $ulidRouteKeyColumnName = 'uuid';
 }
 
 function toImmutableDate(mixed $value): ?CarbonImmutable
@@ -63,6 +75,7 @@ function toUlidString(mixed $value): ?string
 beforeEach(function (): void {
     Schema::dropIfExists('backfill_posts');
     Schema::dropIfExists('backfill_teams');
+    Schema::dropIfExists('backfill_uuid_posts');
 
     Schema::create('backfill_posts', function (Blueprint $table): void {
         $table->id();
@@ -76,6 +89,14 @@ beforeEach(function (): void {
         $table->id();
         $table->ulid('public_id')->nullable()->unique();
         $table->string('name')->nullable();
+        $table->timestamp('created_at', 3)->nullable();
+        $table->timestamp('updated_at', 3)->nullable();
+    });
+
+    Schema::create('backfill_uuid_posts', function (Blueprint $table): void {
+        $table->id();
+        $table->uuid('uuid')->nullable()->unique();
+        $table->string('title')->nullable();
         $table->timestamp('created_at', 3)->nullable();
         $table->timestamp('updated_at', 3)->nullable();
     });
@@ -171,4 +192,42 @@ it('uses the model route key column when backfilling custom columns', function (
     }
 
     expect(Ulid::fromString($publicId)->getDateTime()->format('Uv'))->toBe($persistedCreatedAt->format('Uv'));
+});
+
+it('backfills using configured uuid type', function (): void {
+    config()->set('ulidmodelroutes.id_type', 'uuid');
+    config()->set('ulidmodelroutes.uuid_type', 'uuid7');
+
+    $createdAt = CarbonImmutable::parse('2024-03-02 11:22:33.444 UTC');
+
+    DB::table('backfill_uuid_posts')->insert([
+        'title' => 'uuid record',
+        'uuid' => null,
+        'created_at' => $createdAt,
+        'updated_at' => $createdAt,
+    ]);
+
+    $post = BackfillUuidPost::query()->where('title', 'uuid record')->firstOrFail();
+
+    $exitCode = Artisan::call('ulidmodelroutes:backfill', ['model' => BackfillUuidPost::class]);
+
+    expect($exitCode)->toBe(0)
+        ->and(Artisan::output())->toContain('Backfilled 1 records on backfill_uuid_posts.uuid.');
+
+    $post->refresh();
+
+    $uuid = toUlidString($post->getAttribute('uuid'));
+    $persistedCreatedAt = toImmutableDate($post->getAttribute('created_at'));
+
+    expect($uuid)->not()->toBeNull()
+        ->and($persistedCreatedAt instanceof CarbonImmutable)->toBeTrue();
+
+    if ($uuid === null || ! $persistedCreatedAt instanceof CarbonImmutable) {
+        return;
+    }
+
+    $parsedUuid = Uuid::fromString($uuid);
+
+    expect($parsedUuid->getVersion())->toBe(7)
+        ->and($parsedUuid->getDateTime()->format('Uv'))->toBe($persistedCreatedAt->format('Uv'));
 });

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace jdavidbakr\UlidModelRoutes;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 
 /**
  * @phpstan-require-extends Model
@@ -13,7 +12,7 @@ use Illuminate\Support\Str;
 trait HasUlidRouteKey
 {
     /**
-     * Boot the trait and ensure the model has a ULID route key.
+     * Boot the trait and ensure the model has a route key identifier.
      */
     protected static function bootHasUlidRouteKey(): void
     {
@@ -21,7 +20,7 @@ trait HasUlidRouteKey
 
         forward_static_call([$modelClass, 'creating'], static function (Model $model): void {
             if (empty($model->getAttribute($model->getRouteKeyName()))) {
-                $model->setAttribute($model->getRouteKeyName(), (string) Str::ulid());
+                $model->setAttribute($model->getRouteKeyName(), RouteKeyGenerator::generate());
             }
         });
     }

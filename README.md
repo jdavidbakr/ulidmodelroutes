@@ -10,7 +10,7 @@
     <a href="https://packagist.org/packages/jdavidbakr/ulidmodelroutes"><img src="https://img.shields.io/packagist/dt/jdavidbakr/ulidmodelroutes.svg?style=flat-square" alt="Total Downloads"></a>
 </p>
 
-Configures models to have ULID route keys while still having integer primary keys
+Configures models to have ULID or UUID route keys while still having integer primary keys
 
 ## Installation
 
@@ -28,7 +28,9 @@ php artisan vendor:publish --tag="ulidmodelroutes-config"
 
 ## Usage
 
-Add a ULID column to each model table that should be used for route model binding. Keep it indexed and unique.
+Add an identifier column to each model table that should be used for route model binding. Keep it indexed and unique.
+
+For ULIDs:
 
 ```php
 use Illuminate\Database\Schema\Blueprint;
@@ -36,6 +38,17 @@ use Illuminate\Support\Facades\Schema;
 
 Schema::table('posts', function (Blueprint $table) {
     $table->ulid('ulid')->nullable()->unique();
+});
+```
+
+For UUIDs:
+
+```php
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+Schema::table('posts', function (Blueprint $table) {
+    $table->uuid('uuid')->nullable()->unique();
 });
 ```
 
@@ -55,9 +68,9 @@ class Post extends Model
 
 Once the trait is applied:
 
-- new models receive a ULID automatically when they are created
-- URL generation uses the ULID instead of the integer primary key
-- implicit route model binding resolves records by the ULID column
+- new models receive a route identifier automatically when they are created
+- URL generation uses the configured route identifier instead of the integer primary key
+- implicit route model binding resolves records by the configured route key column
 
 Example route:
 
@@ -102,9 +115,28 @@ return [
 ];
 ```
 
+### Switching between ULID and UUID
+
+By default, the package generates ULIDs.
+
+You can switch to UUID generation in the config file:
+
+```php
+return [
+    'id_type' => 'uuid', // 'ulid' or 'uuid'
+    'uuid_type' => 'uuid7', // 'uuid7', 'uuid4', or 'ordered'
+];
+```
+
+Notes:
+
+- `ulid` keeps lexicographic ordering and supports `created_at`-based backfill timestamps.
+- `uuid7` is time-ordered and also supports `created_at`-based backfill timestamps.
+- `uuid4` is random and does not preserve chronological sort order.
+
 ### Existing data
 
-This package does not create database columns for you. If you are adding ULIDs to an existing table, add the column in a migration and then backfill missing values before making the column unique.
+This package does not create database columns for you. If you are adding route identifiers to an existing table, add the column in a migration and then backfill missing values before making the column unique.
 
 You can backfill an existing model with the included Artisan command:
 
@@ -112,7 +144,7 @@ You can backfill an existing model with the included Artisan command:
 php artisan ulidmodelroutes:backfill "App\\Models\\Post"
 ```
 
-The command only fills missing route key values. When a row has a `created_at` value, the generated ULID uses that timestamp so the resulting identifiers stay as close as possible to the model's original creation order.
+The command only fills missing route key values. When a row has a `created_at` value, the generated ULID or UUIDv7 uses that timestamp so the resulting identifiers stay as close as possible to the model's original creation order.
 
 Recommended rollout for existing tables:
 
@@ -127,7 +159,7 @@ Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed re
 
 ## Contributing
 
-Thank you for considering contributing to Ulidmodelroutes.
+Thank you for considering contributing to UlidModelRoutes.
 
 ## Security Vulnerabilities
 
